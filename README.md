@@ -1,3 +1,12 @@
+---
+title: DataAnalyst Agent
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # DataAnalyst Agent 🧠📊
 
 **A Privacy-First, Autonomous Multi-Agent Data Analysis System**
