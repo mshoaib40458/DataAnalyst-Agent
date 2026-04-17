@@ -34,10 +34,10 @@ except ImportError:
 
 # ── LLM configuration ────────────────────────────────────────────────────────
 
-LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-70b-versatile")
-# Guard against accidentally using the grok model name which does not exist on Groq API
-if "grok" in LLM_MODEL.lower():
-    LLM_MODEL = "llama-3.1-70b-versatile"
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+# Guard against decommissioned models or typos
+if "llama-3.1-70b-versatile" in LLM_MODEL.lower() or "grok" in LLM_MODEL.lower():
+    LLM_MODEL = "llama-3.3-70b-versatile"
 
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 
