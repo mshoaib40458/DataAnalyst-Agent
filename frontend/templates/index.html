@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Analyst Agent</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal.hidden { display: none; }
+        .modal-content { max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; padding: 2.5rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+        .modal-actions { margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem; }
+        .plan-container { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; margin-top: 1rem; max-height: 300px; overflow-y: auto; }
+        .split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; }
+        .success-btn { background: #10b981; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .success-btn:hover { background: #059669; }
+        pre.json-view { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem;}
+        .modal h3 { margin-top: 0; margin-bottom: 0.5rem; }
+        .text-yellow { color: #f59e0b; }
+        .text-indigo { color: #818cf8; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="logo">
+                <i class="fa-solid fa-brain nav-icon gradient-text"></i>
+                <span class="gradient-text">Nexus Analytics</span>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+            </nav>
+            
+            <div class="upload-section">
+                <div class="upload-area" id="drop-zone">
+                    <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+                    <p>Drag & Drop CSV</p>
+                    <span>or click to browse</span>
+                    <input type="file" id="file-input" accept=".csv" hidden>
+                </div>
+                <div class="sql-upload-panel glass-panel">
+                    <h4><i class="fa-solid fa-database"></i> SQL Table Ingestion</h4>
+                    <input id="sql-db-url" type="text" placeholder="Database URL">
+                    <input id="sql-table-name" type="text" placeholder="Table name">
+                    <button id="sql-upload-btn" class="btn primary-btn">Load SQL Table</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Autonomous AI Data Analyst</h1>
+            </header>
+
+            <div class="dashboard-content" id="dashboard-content">
+                 <!-- Welcome State -->
+                 <div class="welcome-state" id="welcome-state">
+                     <h2>Welcome to Nexus Analytics</h2>
+                     <p>Upload a CSV file to begin an autonomous data analysis workflow powered by Large Language Models.</p>
+                     
+                     <div class="features-grid">
+                          <div class="feature-card glass-panel">
+                              <i class="fa-solid fa-bolt"></i>
+                              <h3>Instant Profiling</h3>
+                              <p>Automatically detect types, missing values, and anomalies in seconds.</p>
+                          </div>
+                          <div class="feature-card glass-panel">
+                              <i class="fa-solid fa-sitemap"></i>
+                              <h3>Agentic Planning</h3>
+                              <p>LangGraph models autonomously determine the best analytical procedures.</p>
+                          </div>
+                          <div class="feature-card glass-panel">
+                              <i class="fa-solid fa-chart-pie"></i>
+                              <h3>Auto Visuals</h3>
+                              <p>Dynamic, interactive charts generated to highlight key insights.</p>
+                          </div>
+                     </div>
+                 </div>
+
+                 <!-- Analysis State -->
+                 <div class="analysis-state hidden" id="analysis-state">
+                     <!-- Progress Tracker -->
+                     <div class="progress-section glass-panel">
+                         <div class="progress-header">
+                            <h3 id="job-status-title">Analysis in Progress... <span class="loader"></span></h3>
+                            <button id="download-btn" class="btn primary-btn hidden"><i class="fa-solid fa-download"></i> Download Report</button>
+                         </div>
+                         <div class="terminal-box" id="terminal-logs">
+                                <!-- Logs injected here via JS -->
+                         </div>
+                     </div>
+
+                     <!-- Results UI (hidden until complete) -->
+                     <div class="results-container hidden" id="results-container">
+                          
+                          <!-- Insights Summary -->
+                          <div class="panel glass-panel insights-panel">
+                              <h3><i class="fa-solid fa-lightbulb text-yellow"></i> AI Insights Summary</h3>
+                              <div id="ai-insights-content" class="markdown-body"></div>
+                          </div>
+
+                          <div class="panel glass-panel">
+                              <h3><i class="fa-solid fa-circle-question"></i> Ranked Analytical Questions</h3>
+                              <ul id="questions-list" class="styled-list"></ul>
+                          </div>
+                          
+                          <div class="panels-row">
+                              <!-- Dataset Profile Summary -->
+                              <div class="panel glass-panel profile-panel">
+                                  <h3>Dataset Profile</h3>
+                                  <div class="stats-grid" id="profile-stats">
+                                      <!-- Injected via JS -->
+                                  </div>
+                              </div>
+                              
+                              <!-- Analysis Plan -->
+                              <div class="panel glass-panel plan-panel">
+                                  <h3>Executed Analysis Plan</h3>
+                                  <ul id="plan-list" class="styled-list">
+                                        <!-- Injected via JS -->
+                                  </ul>
+                              </div>
+                          </div>
+
+                          <!-- Visualizations -->
+                          <div class="panel glass-panel viz-panel">
+                              <h3>Generated Visualizations</h3>
+                              <div id="chart-container" class="chart-container">
+                                   <!-- Plotly Chart Injected here -->
+                                   <div class="empty-state">No visualizations generated.</div>
+                              </div>
+                          </div>
+
+                          <div class="panel glass-panel">
+                              <h3>Export Reports</h3>
+                              <div class="export-actions">
+                                  <button id="download-json-btn" class="btn primary-btn">Download JSON</button>
+                                  <button id="download-html-btn" class="btn primary-btn">Download HTML</button>
+                                  <button id="download-pdf-btn" class="btn primary-btn">Download PDF</button>
+                              </div>
+                          </div>
+
+                     </div>
+                 </div>
+            </div>
+        </main>
+
+        <!-- HITL Modals -->
+        <div id="cleaning-modal" class="modal hidden">
+            <div class="modal-content glass-panel">
+                <h3><i class="fa-solid fa-broom text-yellow"></i> Data Cleaning Required</h3>
+                <p>The AI has detected anomalies or missing values. Please review the proposed cleaning strategy:</p>
+                <div id="cleaning-plan-container" class="plan-container"></div>
+                <div class="modal-actions">
+                    <button id="approve-cleaning-btn" class="btn success-btn"><i class="fa-solid fa-check"></i> Approve & Clean</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="planner-modal" class="modal hidden">
+            <div class="modal-content glass-panel">
+                <h3><i class="fa-solid fa-sitemap text-indigo"></i> Analysis Plan Review</h3>
+                <p>The AI has generated the following analytical questions and execution plan. Please approve to commence processing:</p>
+                <div class="split-view">
+                    <div>
+                        <h4 style="margin-bottom: 0.5rem;">Analytical Questions</h4>
+                        <ul id="modal-questions-list" class="styled-list" style="margin-top:0;"></ul>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom: 0.5rem;">Execution Plan</h4>
+                        <ul id="modal-plan-list" class="styled-list" style="margin-top:0;"></ul>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="approve-plan-btn" class="btn success-btn"><i class="fa-solid fa-play"></i> Approve & Execute</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    
+    <!-- Configuration -->
+    <script>
+        window.APP_CONFIG = {
+            require_api_key: {{ require_api_key|lower }},
+            app_version: "{{ app_version }}",
+            backend_url: "{{ backend_url }}"
+        };
+    </script>
+    
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
