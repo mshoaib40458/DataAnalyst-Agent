@@ -362,7 +362,10 @@ async def upload_dataset(file: UploadFile = File(...), _: None = Depends(verify_
     if DISABLE_DATA_PERSISTENCE:
         # ── Secure mode: parse to DataFrame, never write to disk ─────────────
         def _validate_and_store_in_memory():
-            df = pd.read_csv(io.BytesIO(content))
+            try:
+                df = pd.read_csv(io.BytesIO(content))
+            except UnicodeDecodeError:
+                df = pd.read_csv(io.BytesIO(content), encoding='latin-1')
             validate_dataframe_schema(df)
             if ENABLE_DATA_MASKING:
                 from app.utils.security import mask_sensitive_dataframe
@@ -394,7 +397,10 @@ async def upload_dataset(file: UploadFile = File(...), _: None = Depends(verify_
 
         try:
             def _validate_csv():
-                validation_df = pd.read_csv(file_path, nrows=1000)
+                try:
+                    validation_df = pd.read_csv(file_path, nrows=1000)
+                except UnicodeDecodeError:
+                    validation_df = pd.read_csv(file_path, nrows=1000, encoding='latin-1')
                 validate_dataframe_schema(validation_df)
             await run_in_threadpool(_validate_csv)
         except HTTPException:
