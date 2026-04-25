@@ -141,6 +141,19 @@
                               </div>
                           </div>
 
+                          <!-- Conversational AI Data Chat -->
+                          <div class="panel glass-panel chat-panel" style="margin-top:2rem;">
+                              <h3><i class="fa-solid fa-messages"></i> Chat with your Data</h3>
+                              <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:1rem;">Ask follow-up questions. The AI will write and execute safe Pandas code dynamically.</p>
+                              <div id="chat-history" style="min-height:100px; max-height:300px; overflow-y:auto; padding:1rem; background:rgba(0,0,0,0.2); border-radius:8px; margin-bottom:1rem; display:flex; flex-direction:column; gap:10px;">
+                                  <!-- Chat messages injected here -->
+                              </div>
+                              <div style="display:flex; gap:10px;">
+                                  <input type="text" id="chat-input" placeholder="E.g., What was the average salary?" style="flex:1; padding:10px; border-radius:6px; border:1px solid #334155; background:#1e293b; color:white;">
+                                  <button id="chat-btn" class="upload-btn" style="width:100px; margin-top:0;">Send <i class="fa-solid fa-paper-plane"></i></button>
+                              </div>
+                          </div>
+
                           <div class="panel glass-panel">
                               <h3>Export Reports</h3>
                               <div class="export-actions">

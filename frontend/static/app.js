@@ -528,4 +528,66 @@ document.addEventListener('DOMContentLoaded', () => {
             logTerminal('[Error]: Download failed - Network Error', true);
         }
     }
+
+    // --- Chat with Data Logic ---
+    const chatBtn = document.getElementById('chat-btn');
+    const chatInput = document.getElementById('chat-input');
+    const chatHistory = document.getElementById('chat-history');
+
+    async function sendChatMessage() {
+        if (!currentJobId) return;
+        const query = chatInput.value.trim();
+        if (!query) return;
+
+        // Add user message
+        const userMsg = document.createElement('div');
+        userMsg.style = "align-self: flex-end; background: #3b82f6; color: white; padding: 8px 12px; border-radius: 8px; max-width: 80%; word-wrap: break-word;";
+        userMsg.innerText = query;
+        chatHistory.appendChild(userMsg);
+        
+        chatInput.value = '';
+        chatInput.disabled = true;
+        chatBtn.disabled = true;
+        chatBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        try {
+            const res = await fetch(buildUrl(`/chat/${currentJobId}`), {
+                method: 'POST',
+                headers: buildHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ query: query })
+            });
+            
+            const data = await res.json();
+            
+            const aiMsg = document.createElement('div');
+            aiMsg.style = "align-self: flex-start; background: #334155; color: #f8fafc; padding: 8px 12px; border-radius: 8px; max-width: 80%; word-wrap: break-word; border:1px solid #475569;";
+            if (res.ok) {
+                aiMsg.innerText = data.response;
+            } else {
+                aiMsg.innerText = `Error: ${data.detail || 'Could not process query.'}`;
+            }
+            chatHistory.appendChild(aiMsg);
+        } catch (error) {
+            const aiMsg = document.createElement('div');
+            aiMsg.style = "align-self: flex-start; background: #7f1d1d; color: #f8fafc; padding: 8px 12px; border-radius: 8px; border:1px solid #991b1b;";
+            aiMsg.innerText = "Network error. Please try again.";
+            chatHistory.appendChild(aiMsg);
+        } finally {
+            chatInput.disabled = false;
+            chatBtn.disabled = false;
+            chatBtn.innerHTML = 'Send <i class="fa-solid fa-paper-plane"></i>';
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            chatInput.focus();
+        }
+    }
+
+    if (chatBtn && chatInput) {
+        chatBtn.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+    }
+
 });

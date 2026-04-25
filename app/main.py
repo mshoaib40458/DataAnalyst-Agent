@@ -657,3 +657,72 @@ async def analysis_history(
             for row in rows
         ]
     }
+
+
+class ChatRequest(BaseModel):
+    query: str
+
+@app.post("/chat/{job_id}")
+async def chat_with_data(job_id: str, req: ChatRequest, _: None = Depends(verify_api_key)):
+    """
+    Conversational Analytics feature: Allows users to ask follow-up questions
+    and executes safe Pandas queries using LLM.
+    """
+    from app.agent.nodes import LLM_MODEL
+    from langchain_groq import ChatGroq
+    from langchain_core.messages import HumanMessage
+    import pandas as pd
+    import json
+    
+    with get_db_session() as db:
+        job = db.query(AnalysisJob).filter(AnalysisJob.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found.")
+            
+    # Load dataset securely
+    df = None
+    if DISABLE_DATA_PERSISTENCE:
+        from app.utils.data_store import get_dataset
+        df = get_dataset(job_id)
+    elif os.path.exists(job.file_path):
+        try:
+            df = pd.read_csv(job.file_path)
+        except UnicodeDecodeError:
+            df = pd.read_csv(job.file_path, encoding="latin-1")
+            
+    if df is None:
+        raise HTTPException(
+            status_code=410, 
+            detail="Raw dataset has been securely discarded from memory (Zero-Retention Mode). Chat feature unavailable."
+        )
+
+    llm = ChatGroq(model=LLM_MODEL, temperature=0.1, max_tokens=1024)
+    # Ask LLM to generate a safe pandas expression
+    schema_info = str(df.dtypes.to_dict())
+    prompt = f"""You are an expert Data Analyst Agent. You have a pandas DataFrame 'df' loaded with these columns and types: {schema_info}.
+The user asks: "{req.query}".
+Write a SINGLE line of Python code using pandas that evaluates to a string or number answering this question. 
+It must be purely an expression (e.g. df['Sales'].mean() or len(df)). No imports, no assignments. Just the expression.
+If the question is just greeting/conversational, reply with 'CONVERSATIONAL: ' followed by your response.
+Output ONLY the expression or conversational answer."""
+    
+    try:
+        ai_expr = llm.invoke([HumanMessage(content=prompt)]).content.strip(" \n`'\"")
+        if ai_expr.startswith("Python") or ai_expr.startswith("python"):
+            ai_expr = ai_expr[6:].strip(" \n`")
+            
+        if ai_expr.startswith("CONVERSATIONAL:"):
+            return {"response": ai_expr.replace("CONVERSATIONAL:", "").strip()}
+            
+        # Safely evaluate
+        allowed_globals = {"__builtins__": {}, "pd": pd}
+        allowed_locals = {"df": df}
+        raw_result = eval(ai_expr, allowed_globals, allowed_locals)
+        
+        # Format the result back into english
+        explanation_prompt = f"The user asked: '{req.query}'. The python result is: {raw_result}. Provide a short, direct human-friendly answer based on this."
+        final_answer = llm.invoke([HumanMessage(content=explanation_prompt)]).content
+        return {"response": final_answer}
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return {"response": "I couldn't calculate that from the data right now. Could you rephrase the question?"}
