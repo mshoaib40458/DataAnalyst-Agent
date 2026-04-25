@@ -697,32 +697,53 @@ async def chat_with_data(job_id: str, req: ChatRequest, _: None = Depends(verify
         )
 
     llm = ChatGroq(model=LLM_MODEL, temperature=0.1, max_tokens=1024)
-    # Ask LLM to generate a safe pandas expression
+    
+    import numpy as np
+    
+    # Provide better context
     schema_info = str(df.dtypes.to_dict())
-    prompt = f"""You are an expert Data Analyst Agent. You have a pandas DataFrame 'df' loaded with these columns and types: {schema_info}.
-The user asks: "{req.query}".
-Write a SINGLE line of Python code using pandas that evaluates to a string or number answering this question. 
-It must be purely an expression (e.g. df['Sales'].mean() or len(df)). No imports, no assignments. Just the expression.
-If the question is just greeting/conversational, reply with 'CONVERSATIONAL: ' followed by your response.
-Output ONLY the expression or conversational answer."""
+    sample_data = df.head(3).to_string()
+    
+    prompt = f"""You are an expert Data Analyst Agent. You have a pandas DataFrame 'df' loaded in memory.
+Schema: {schema_info}
+Sample data:
+{sample_data}
+
+The user asks: "{req.query}"
+
+If the question requires calculating or analyzing the dataframe:
+Write a Python script that assigns the final answer to a variable named `result`.
+You can import libraries if needed (pandas, numpy are already imported as pd, np).
+Enclose your code ONLY in ```python ... ``` block.
+
+If the question is conversational or conversational summary of the dataset:
+Just reply directly with text (without any python block!)."""
     
     try:
-        ai_expr = llm.invoke([HumanMessage(content=prompt)]).content.strip(" \n`'\"")
-        if ai_expr.startswith("Python") or ai_expr.startswith("python"):
-            ai_expr = ai_expr[6:].strip(" \n`")
-            
-        if ai_expr.startswith("CONVERSATIONAL:"):
-            return {"response": ai_expr.replace("CONVERSATIONAL:", "").strip()}
-            
-        # Safely evaluate
-        allowed_globals = {"__builtins__": {}, "pd": pd}
-        allowed_locals = {"df": df}
-        raw_result = eval(ai_expr, allowed_globals, allowed_locals)
+        ai_response = llm.invoke([HumanMessage(content=prompt)]).content.strip()
         
-        # Format the result back into english
-        explanation_prompt = f"The user asked: '{req.query}'. The python result is: {raw_result}. Provide a short, direct human-friendly answer based on this."
-        final_answer = llm.invoke([HumanMessage(content=explanation_prompt)]).content
-        return {"response": final_answer}
+        # Check if LLM returned code
+        if "```python" in ai_response:
+            code_block = ai_response.split("```python")[1].split("```")[0].strip()
+            
+            allowed_globals = {"__builtins__": __builtins__, "pd": pd, "np": np}
+            allowed_locals = {"df": df}
+            
+            # Execute the code block, expecting it to set 'result' in locals
+            exec(code_block, allowed_globals, allowed_locals)
+            
+            if "result" in allowed_locals:
+                raw_result = allowed_locals["result"]
+            else:
+                raw_result = "Code executed successfully but 'result' variable was not set."
+                
+            explanation_prompt = f"The user asked: '{req.query}'. The python result is: {raw_result}. Provide a short, direct human-friendly answer based on this."
+            final_answer = llm.invoke([HumanMessage(content=explanation_prompt)]).content
+            return {"response": final_answer}
+        else:
+            # It's purely conversational
+            return {"response": ai_response}
+            
     except Exception as e:
         logger.error(f"Chat error: {e}")
-        return {"response": "I couldn't calculate that from the data right now. Could you rephrase the question?"}
+        return {"response": f"I tried to analyze your data but encountered an error: {str(e)}"}
