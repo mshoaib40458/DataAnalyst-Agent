@@ -700,9 +700,10 @@ async def chat_with_data(job_id: str, req: ChatRequest, _: None = Depends(verify
     
     import numpy as np
     
-    # Provide better context
-    schema_info = str(df.dtypes.to_dict())
-    sample_data = df.head(3).to_string()
+    from app.utils.llm_utils import enforce_token_budget
+    # Provide better context but strictly enforce token limits
+    schema_info = enforce_token_budget(str(df.dtypes.to_dict()), max_tokens=1000)
+    sample_data = enforce_token_budget(df.head(2).to_string(), max_tokens=1500)
     
     prompt = f"""You are an expert Data Analyst Agent. You have a pandas DataFrame 'df' loaded in memory.
 Schema: {schema_info}
