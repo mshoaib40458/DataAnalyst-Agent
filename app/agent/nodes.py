@@ -34,11 +34,16 @@ except ImportError:
 
 # ── LLM configuration ────────────────────────────────────────────────────────
 
-LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
-# Guard against decommissioned models or typos
-if "llama-3.1-70b-versatile" in LLM_MODEL.lower() or "grok" in LLM_MODEL.lower():
-    LLM_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_LLM_MODEL = "openai/gpt-oss-120b"
+DEPRECATED_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant", "llama", "grok"]
 
+def _get_active_model() -> str:
+    model = os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL).strip()
+    if not model or any(dep in model.lower() for dep in DEPRECATED_MODELS):
+        return DEFAULT_LLM_MODEL
+    return model
+
+LLM_MODEL = _get_active_model()
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 
 # Privacy mode flags (mirrored from main.py via environment)
@@ -61,7 +66,7 @@ def _build_llm():
             "Set it in your .env file."
         )
     return ChatGroq(
-        model=LLM_MODEL,
+        model=_get_active_model(),
         temperature=LLM_TEMPERATURE,
         api_key=api_key
     )
